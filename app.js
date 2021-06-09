@@ -1,8 +1,13 @@
+const mongoose=require('mongoose');
+const models=require('./models/dishes');
+require('mongoose-currency').loadType(mongoose);//loads the library to mongoose
+const Currency=mongoose.Types.Currency;
+
 var createError = require('http-errors');
 var express = require('express');
 var path = require('path');
 var cookieParser = require('cookie-parser');
-var logger = require('morgan');
+
 
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
@@ -12,15 +17,25 @@ var leadeRouter=require('./routes/leadeRouter');
 
 var app = express();
 
+//database init
+const url='mongodb://localhost:27017/conFusion';
+const connect=mongoose.connect(url);
+
+connect.then(()=>{
+  console.log('We outcheaaaa in the database');
+}, (err)=>{console.log(err)});
+
+
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'jade');
 
-app.use(logger('dev'));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));//setting up static server
+
 
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
