@@ -110,69 +110,138 @@ dishRouter.route('/:dishId')//the id needs to simply match the one used as a par
 
 
 
+//handling subdocuments//
 
-//handling subdocuments
 dishRouter.route('/:dishId/comments')
 //to handle all comments for a given dishId
 .get((req,res,next)=>{
     Dishes.findById(req.params.dishId)
-    .then((dishes)=>{
-        res.status=200;
-        res.setHeader('Content-Type', 'application/json');
-        res.json(dishes);//throws dishes as a json in the body
-    }, (err)=>{next(err)})
-    .catch((err)=>{next(err)})//passes err to the overall error handler
-})
-
-.post((req, res, next)=>{
-    //res.send(`Will add the dish: ${req.body.name} with details: ${req.body.description}`)
-    //due to app.use(express.json), we expect the body to be structure as a JSON
-    //end defines the endpoint's content
-    Dishes.create(req.body)
     .then((dish)=>{
-        console.log('Dish created', dish);
-        res.status=200;
-        res.setHeader('Content-Type', 'application/json');
-        res.json(dish);//throws dishes as a json in the body
+        if (dish != null){
+             res.status=200;
+             res.setHeader('Content-Type', 'application/json');
+             res.json(dish.comments);//throws dishes as a json in the body
+        }
+        else{
+            err=new Error('Dish' + req.params.dishId + 'not found');
+            err.status=404;
+            return next(err);
+            //build the error and pass it  to the overall error handler 
+        }  
     }, (err)=>{next(err)})
     .catch((err)=>{next(err)})//passes err to the overall error handler
+})
+.post((req, res, next)=>{
+    //to post a new comment for a specific dish
+    Dishes.create(req.body)
+    //.then((dish)=>{
+       // console.log('Dish created', dish);
+        //res.status=200;
+        //res.setHeader('Content-Type', 'application/json');
+       // res.json(dish);//throws dishes as a json in the body
+    //}, (err)=>{next(err)})
+    //.catch((err)=>{next(err)})//passes err to the overall error handler
+    Dishes.findById(req.params.dishId)
+    .then((dish)=>{
+        //we need to push the new comment to the the array of comments within the document
+        //the new comment is within the body of the request
+        if (dish != null){
+            dish.comments.push(req.body);
+            dish.save()//will return the dish itself
+            .then((dish)=>{
+                res.status=200;
+                res.setHeader('Content-Type', 'application/json');
+                res.json(dish)
+            }, (err)=>{next(err)})
+       }
+       else{
+           err=new Error('Dish' + req.params.dishId + 'not found');
+           err.status=404;
+           return next(err);
+           //build the error and pass it  to the overall error handler 
+       }  
+        
+    },(err)=>next(err))
 
 })
-
 
 .put((req, res, next)=>{
-    res.statusCode=403;//the status code for all should be defined
-    res.send('Put operation not supported on /dishes');
+    res.statusCode=403;
+    res.send('Put operation not supported on /dishes/' + req.params.dishId + '/comments');
 })
 
-.delete((req, res, next)=>{//to interact on the collection basd on the model
-    Dishes.remove({})
-    .then((resp)=>{
-        res.send('delete all the dishes');
-        res.status=200;
-        res.setHeader('Content-Type', 'application/json');
-        res.json(resp);
-    }, (err)=>{next(err)})
-    .catch((err)=>{next(err)})
-    //dangerous operation; necessity to define a scope
+.delete((req, res, next)=>{
+    //we wanna remove all comments on a particular dish
+    Dishes.findById(req.params.dishId)
+    .then((dish)=>{
+        if (dish != null){
+            for (var i = (dish.comments.length -1);i>=0; i--){
+                dish.comments.id(dish.comments[i]._id).remove();
+                //.id(subdocument.id) is how we access a subdocument (its elements)
+            };
+            dish.save()
+            .then((dish)=>{
+                res.statusCode=200;
+                res.setHeader('Content-Type', 'application/json');
+                res.json(dish);
+            }, (err)=>{next(err)               
+            })
+
+            
+            
+       }
+       else{
+           err=new Error('Dish' + req.params.dishId + 'not found');
+           err.status=404;
+           return next(err);
+           //build the error and pass it  to the overall error handler 
+       }  
+        
+    },(err)=>next(err))
 });
 
 
+  
 dishRouter.route('/:dishId/comments/commentId')
-//in order to modify a partucular comment since we have an array of them
-.get((req, res,next)=>{
-    Dishes.findById(req.params.dishId)
+// we wanna access a particular comment
+
+/**
+ * This endpoint allows us to access a particular comment of a particular document
+ * The comment being one amongst an array of other comments
+ * Mongoose documentation:
+ * -Each subdocument has an _id by default.
+ * -Mongoose document arrays have a special id method for searching a document array to find a document with a given _id
+ * -Ex:const doc = parent.children.id(_id);
+ * =====>In this case, the commentId is the _id of the subdocument and .id is used since we're dealing with an array subdocument
+ */
+.get((req,res,next)=>{
+    Dishes.findById(req.params.dishId)//found the correct document
     .then((dish)=>{
-        res.status=200;
-        res.setHeader('Content-Type', 'application/json');
-        res.json(dish);
+        if (dish != null && dish.comments.id(req.params.commentId != null)){
+             res.status=200;
+             res.setHeader('Content-Type', 'application/json');
+             res.json(dish.comments.id(req.params.commentId));
+            }
+        else if (dish==null){
+            err=new Error('Dish' + req.params.dishId + 'not found');
+            err.status=404;
+            return next(err);
+            //build the error and pass it  to the overall error handler 
+        }
+
+        else {
+            err=new Error('Comment' + req.params.commentId + 'not found');
+            err.status=404;
+            return next(err);
+            //see the req.params as a object that carries all the ___Id as proprieties       
+        }
     }, (err)=>{next(err)})
-    .catch((err)=>{next(err)})
+    .catch((err)=>{next(err)})//passes err to the overall error handler
 })
 
 .post((req, res, next)=>{
     res.statusCode=403;
-    res.send('Post operations not supported on dishes '+req.params.dishId)
+    res.send('Post operations not supported on dishes '+req.params.dishId+ '/comments/'+ req.params.commentId);
 })//it doesn't make sense to post one single dish form the user \
 //post is about adding a new element to the database
 
