@@ -34,6 +34,31 @@ app.set('view engine', 'jade');
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
+
+function auth(req,res,next){
+  console.log(req.headers);
+  var authHeader=req.headers.authorization;
+  if(!authHeader){
+    var err=new Error('You are not authenticated');
+    res.setHeader('WWW-Authenticate', 'Basic');
+    err.status=401;
+    return next(err);
+  }
+  var auth= new Buffer.from(authHeader.split(' ')[1], 'base64').toString(':')
+  //because [0] would contain basic
+  //split a second time to fetch user_name and password
+  var user_name=auth[0];
+  var password=auth[1];
+  if (user_name==='admin' && password==='password'){
+    next()//next middleware
+  }else{
+    res.setHeader('WWW-Authenticate', 'Basic');
+    err.status=401;
+    return next(err);
+  }
+};
+
+app.use(auth);//before serving static ressources
 app.use(express.static(path.join(__dirname, 'public')));//setting up static server
 
 
