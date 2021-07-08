@@ -36,6 +36,7 @@ app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser('12345-67890-09876-54321'));
 //passing secret key to cookie parser in order to create sessions with signed cookies
 
+
 function auth (req, res, next) {
   console.log(req.headers);
   var authHeader = req.headers.authorization;
@@ -47,7 +48,7 @@ function auth (req, res, next) {
       return;
   }
 
-  var auth = Buffer.from(authHeader.split(' ')[1], 'base64').toString().split(':');
+  var auth = new Buffer.from(authHeader.split(' ')[1], 'base64').toString().split(':');
   var user = auth[0];
   var pass = auth[1];
   if (user == 'admin' && pass == 'password') {
@@ -59,8 +60,6 @@ function auth (req, res, next) {
       next(err);
   }
 }
-
-
 
 app.use(auth);//before serving static ressources
 app.use(express.static(path.join(__dirname, 'public')));//setting up static server
