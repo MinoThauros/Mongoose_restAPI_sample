@@ -19,7 +19,7 @@ var app = express();
 
 //database init
 const url='mongodb://localhost:27017/conFusion';
-const connect=mongoose.connect(url);
+const connect=mongoose.connect(url, { useNewUrlParser: true });
 
 connect.then(()=>{
   console.log('We outcheaaaa in the database');
@@ -35,31 +35,61 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser('12345-67890-09876-54321'));
 //passing secret key to cookie parser in order to create sessions with signed cookies
+/**Work flow (for cookie setup):
+ * => Setup the cookie after first authentication
+ * => So that after first loggin, we check the cookies instead of making an authorization request
+ * 
+ **Logic(routine for every log in):
+ * =>Check if cookies exist already, so {if (!req.signedCookies.user)}; user only exists if auth was completed
+ * =>if not, auth was never done so begin auth (req.headers.authorization), then set cookie, then return
+ * =>If cookie exist, fecth information from cookie/header, populate then return
+ *  
+*/
 
 
 function auth (req, res, next) {
-  console.log(req.headers);
-  var authHeader = req.headers.authorization;
-  if (!authHeader) {
-      var err = new Error('You are not authenticated!');
-      res.setHeader('WWW-Authenticate', 'Basic');
-      err.status = 401;
-      next(err);
-      return;
-  }
+  console.log(JSON.stringify(req.signedCookies));
 
-  var auth = new Buffer.from(authHeader.split(' ')[1], 'base64').toString().split(':');
-  var user = auth[0];
-  var pass = auth[1];
-  if (user == 'admin' && pass == 'password') {
+  if(!req.signedCookies.user){
+    var authHeader = req.headers.authorization;//triggers the prompt
+    if (!authHeader) {
+        var err = new Error('You are not authenticated!');
+        res.setHeader('WWW-Authenticate', 'Basic');
+        err.status = 401;
+        next(err);
+        return;
+      }
+
+    var auth = new Buffer.from(authHeader.split(' ')[1], 'base64').toString().split(':');
+    var user = auth[0];
+    var pass = auth[1];
+    if (user == 'admin' && pass == 'password') {
+      res.cookie('user','admin',{signed:true});//after passing the auth, we setup the cookie for next time (signed cookie)
+      //res.cookie syntax: res.cookie(name,label, options); we pass the name of the authenticated person
       next(); // authorized
-  } else {
+
+      } else {//if auth informatoin doesnt checkout 
+        var err = new Error('You are not authenticated!');
+        res.setHeader('WWW-Authenticate', 'Basic');      
+        err.status = 401;
+        next(err);
+      }
+    }
+  else{//if the signedCookies.user exists, simply fetch the informattion
+    if(req.signedCookies.user==='admin'){//make sure it's an adequate user
+      next()
+    }
+    else{
       var err = new Error('You are not authenticated!');
       res.setHeader('WWW-Authenticate', 'Basic');      
       err.status = 401;
       next(err);
+    }
+
   }
 }
+
+
 
 app.use(auth);//before serving static ressources
 app.use(express.static(path.join(__dirname, 'public')));//setting up static server
