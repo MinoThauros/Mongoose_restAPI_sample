@@ -7,6 +7,8 @@ var createError = require('http-errors');
 var express = require('express');
 var path = require('path');
 var cookieParser = require('cookie-parser'); 
+var session=require('express-session');
+var FileStore=require('session-file-store')(session)
 
 
 var indexRouter = require('./routes/index');
@@ -33,7 +35,7 @@ app.set('view engine', 'jade');
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-app.use(cookieParser('12345-67890-09876-54321'));
+//app.use(cookieParser('12345-67890-09876-54321'));
 //passing secret key to cookie parser in order to create sessions with signed cookies
 /**Work flow (for cookie setup):
  * => Setup the cookie after first authentication
@@ -46,7 +48,14 @@ app.use(cookieParser('12345-67890-09876-54321'));
  *  
 */
 
+app.use(session({
+  name:'session-id',//sessionId name
+  secret:'12345-67890-09876-54321',
+  saveUninitialized:false,
+  store: new FileStore(),
+}))//SESSION init
 
+/**
 function auth (req, res, next) {
   console.log(JSON.stringify(req.signedCookies));
 
@@ -68,7 +77,7 @@ function auth (req, res, next) {
       //res.cookie syntax: res.cookie(name,label, options); we pass the name of the authenticated person
       next(); // authorized
 
-      } else {//if auth informatoin doesnt checkout 
+      } else {//if auth informationn doesnt checkout 
         var err = new Error('You are not authenticated!');
         res.setHeader('WWW-Authenticate', 'Basic');      
         err.status = 401;
@@ -88,6 +97,50 @@ function auth (req, res, next) {
 
   }
 }
+*/
+
+//implementation using sessions
+function auth (req, res, next) {
+  console.log(req.session);
+
+  if(!req.session.user){//only exists after first auth
+    var authHeader = req.headers.authorization;//triggers the prompt
+    if (!authHeader) {
+        var err = new Error('You are not authenticated!');
+        res.setHeader('WWW-Authenticate', 'Basic');
+        err.status = 401;
+        next(err);
+        return;
+      }
+
+    var auth = new Buffer.from(authHeader.split(' ')[1], 'base64').toString().split(':');
+    var user = auth[0];
+    var pass = auth[1];
+    if (user == 'admin' && pass == 'password') {
+      req.session.user='admin';
+      next(); // authorized
+
+      } else {//if auth informationn doesnt checkout 
+        var err = new Error('You are not authenticated!');
+        res.setHeader('WWW-Authenticate', 'Basic');      
+        err.status = 401;
+        next(err);
+      }
+    }
+  else{//if the signedCookies.user exists, simply fetch the informattion
+    if(req.session.user==='admin'){//make sure it's an adequate user
+      next()
+    }
+    else{
+      var err = new Error('You are not authenticated!');
+      res.setHeader('WWW-Authenticate', 'Basic');      
+      err.status = 401;
+      next(err);
+    }
+
+  }
+}
+
 
 
 
