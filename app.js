@@ -55,6 +55,10 @@ app.use(session({
   store: new FileStore(),
 }))//SESSION init
 
+//so both can be accessed before auth
+app.use('/', indexRouter);
+app.use('/users', usersRouter);
+
 /**
 function auth (req, res, next) {
   console.log(JSON.stringify(req.signedCookies));
@@ -103,38 +107,23 @@ function auth (req, res, next) {
 function auth (req, res, next) {
   console.log(req.session);
 
-  if(!req.session.user){//only exists after first auth
-    var authHeader = req.headers.authorization;//triggers the prompt
-    if (!authHeader) {
-        var err = new Error('You are not authenticated!');
-        res.setHeader('WWW-Authenticate', 'Basic');
-        err.status = 401;
-        next(err);
-        return;
+  if(!req.session.user){//only exists after first auth; now handled elsewhere
+    //var authHeader = req.headers.authorization;triggers the prompt
+    //if (!authHeader) {
+      var err = new Error('You are not authenticated!');
+      res.setHeader('WWW-Authenticate', 'Basic');
+      err.status = 401;
+      return next(err);
       }
 
-    var auth = new Buffer.from(authHeader.split(' ')[1], 'base64').toString().split(':');
-    var user = auth[0];
-    var pass = auth[1];
-    if (user == 'admin' && pass == 'password') {
-      req.session.user='admin';
-      next(); // authorized
-
-      } else {//if auth informationn doesnt checkout 
-        var err = new Error('You are not authenticated!');
-        res.setHeader('WWW-Authenticate', 'Basic');      
-        err.status = 401;
-        next(err);
-      }
-    }
   else{//if the signedCookies.user exists, simply fetch the informattion
-    if(req.session.user==='admin'){//make sure it's an adequate user
+    if(req.session.user==='authenticated'){//make sure it's an adequate user
       next()
     }
     else{
       var err = new Error('You are not authenticated!');
       res.setHeader('WWW-Authenticate', 'Basic');      
-      err.status = 401;
+      err.status = 403;
       next(err);
     }
 
@@ -146,10 +135,6 @@ function auth (req, res, next) {
 
 app.use(auth);//before serving static ressources
 app.use(express.static(path.join(__dirname, 'public')));//setting up static server
-
-
-app.use('/', indexRouter);
-app.use('/users', usersRouter);
 app.use('/dishes', dishRouter);
 app.use('/promos', promoRouter);
 app.use('/leader', leadeRouter);
